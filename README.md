@@ -118,6 +118,11 @@ Lidar的数据直接是ros中的sensor_msgs/PointCloud2即可，但位置数据�
 
 [4]. Lidar和IMU标定需要标什么？https://blog.csdn.net/tfb760/article/details/108532974
 
+
+转载：https://www.cnblogs.com/YongQiVisionIMAX/p/13871652.html
+
+
+
 ## A simple method for finding the extrinsic calibration between a 3D lidar and a 6-dof pose sensor
 
 **Note: Accurate results require highly non-planar motions, this makes the technique poorly suited for calibrating sensors mounted to cars.**
