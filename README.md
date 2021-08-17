@@ -4,22 +4,27 @@
 ## 0. 前言
 对于Lidar+IMU系统，往往需要标定Lidar与IMU的外参[4]，即从Lidar到IMU的6个位姿参数。ETH开源的lidar_align代码[0]，用于标定Lidar和里程计Odom之间的位姿参数。本文将对代码进行初步介绍，并总结一些使用中可能会遇到的问题。
 ## 1. 代码整体一览
+
 1.1 代码结构
 代码主要包括：头文件、cpp、以及ROS的launch启动文件等。其中头文件包括：
 aligner.h：Lidar和Odom对齐（外参计算）时用到的类
 loader.h：从ROS的Bag或CSV格式载入数据的相关函数
 sensors.h：主要包括：里程计Odom，以及雷达Lidar相关接口
 transform.h：一些SO3变化的计算以及转换，在插值、优化时使用
+
 1.2 方法基本思想
 方法本质解决的是一个优化问题，即在外参参数(6DoF)如何选择时，使Lidar采集到的数据转化到Odom系下后，前后两次scan的数据点能够尽可能的重合。
 详细一点儿来说，方法将Lidar数据根据当前假设的状态变量（6DoF参数）变换到Odom系下，构成点云PointCloud，之后对每一次scan时的数据，在下一次scan中通过kdtree的方式寻找最近邻的数据点并计算距离，当总距离最小时可以认为完全匹配，即计算的外参参数正确。
+
 1.3 主要流程
 代码主要有两部分：载入数据与优化计算。载入数据部分从Bag数据载入雷达的数据(sensor_msgs/PointCloud2)，并从CSV或Bag数据中载入Odom获得的6DoF位置信息。具体的位置信息如何获得将在后面进行介绍。优化计算部分将在第2.2小节详细展开。
 ## 2. 详细介绍
+
 2.1 主要数据类型
 Odom数据：主要包括两个数据：时间戳timestamp_us_与从当前时刻到初始时刻的变换T_o0_ot_。
 Lidar数据：主要包括两个参数：从Lidar到Odom的外参T_o_l_与每次扫描的数据scans_，而每次的扫描scan数据类型主要包括：扫描起始时间timestamp_us_，本次扫描的点云raw_points_，某个点在Odom的变换（用于去畸变）T_o0_ot_，以及相关配置参数等。
 Aligner数据：Aligner首先包含了需要优化的数据OptData（其中包括Lidar、Odom等数据），以及相应的配置参数（数据载入路径、初值、优化参数、KNN相关参数等），以及优化计算的相关参数。
+
 2.2 优化过程详细介绍
 在载入了Odom和Lidar数据之后，进行优化求解6个位姿参数。主要求解函数为：lidarOdomTransform
 Aligner::lidarOdomTransform()
