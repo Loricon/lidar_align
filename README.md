@@ -18,26 +18,29 @@ transform.h：一些SO3变化的计算以及转换，在插值、优化时使用
 
 1.2 方法基本思想
 方法本质解决的是一个优化问题，即在外参参数(6DoF)如何选择时，使Lidar采集到的数据转化到Odom系下后，前后两次scan的数据点能够尽可能的重合。
+
 详细一点儿来说，方法将Lidar数据根据当前假设的状态变量（6DoF参数）变换到Odom系下，构成点云PointCloud，之后对每一次scan时的数据，在下一次scan中通过kdtree的方式寻找最近邻的数据点并计算距离，当总距离最小时可以认为完全匹配，即计算的外参参数正确。
 
 1.3 主要流程
-代码主要有两部分：载入数据与优化计算。载入数据部分从Bag数据载入雷达的数据(sensor_msgs/PointCloud2)，并从CSV或Bag数据中载入Odom获得的6DoF位置信息。具体的位置信息如何获得将在后面进行介绍。优化计算部分将在第2.2小节详细展开。
+代码主要有两部分：载入数据与优化计算。载入数据部分从Bag数据载入雷达的数据(sensor_msgs/PointCloud2)，并从CSV或Bag数据中载入Odom获得的6DoF位置信息。
+具体的位置信息如何获得将在后面进行介绍。优化计算部分将在第2.2小节详细展开。
 ## 2. 详细介绍
 
 2.1 主要数据类型
 Odom数据：主要包括两个数据：时间戳timestamp_us_与从当前时刻到初始时刻的变换T_o0_ot_。
+
 Lidar数据：主要包括两个参数：从Lidar到Odom的外参T_o_l_与每次扫描的数据scans_，而每次的扫描scan数据类型主要包括：扫描起始时间timestamp_us_，本次扫描的点云raw_points_，某个点在Odom的变换（用于去畸变）T_o0_ot_，以及相关配置参数等。
+
 Aligner数据：Aligner首先包含了需要优化的数据OptData（其中包括Lidar、Odom等数据），以及相应的配置参数（数据载入路径、初值、优化参数、KNN相关参数等），以及优化计算的相关参数。
 
 2.2 优化过程详细介绍
-在载入了Odom和Lidar数据之后，进行优化求解6个位姿参数。主要求解函数为：lidarOdomTransform
-Aligner::lidarOdomTransform()
-首先进行相关的优化配置。默认优化参数是6个，但可以考虑两个传感器传输造成的时间差，如果考虑这个因素，参数数量将变为7。
-优化时，采用NLOPT优化库[3]，默认首先全局优化这三个参数。如果提供的初值与真值相差较大，或完全没有设置初值（默认为全0），则需要进行全局优化获得旋转参数。在局部优化这6个参数，局部优化开始时的初值就是3个为0的平移参数，以及全局优化计算出来的旋转参数。全局优化、局部优化，都是调用的optimize函数。
-Aligner::optimize()
-在这个函数设置了NLOPT优化的相关参数，包括：是全局优化还是局部优化、优化问题的上下界、最大迭代次数、求解精度以及目标函数等。最重要的是目标函数LidarOdomMinimizer
-LidarOdomMinimizer()
-这个函数在优化中会不断调用，迭代计算。首先会通过上一时刻的状态，计算新的从Lidar到Odom的变换（这里用到了Transform.h中定义的一些变换），误差是由lidarOdomKNNError函数获得。
+在载入了Odom和Lidar数据之后，进行优化求解6个位姿参数。
+主要求解函数为：lidarOdomTransform Aligner::lidarOdomTransform()
+
+首先进行相关的优化配置。默认优化参数是6个，但可以考虑两个传感器传输造成的时间差，如果考虑这个因素，参数数量将变为7。优化时，采用NLOPT优化库[3]，默认首先全局优化这三个参数。如果提供的初值与真值相差较大，或完全没有设置初值（默认为全0），则需要进行全局优化获得旋转参数。在局部优化这6个参数，局部优化开始时的初值就是3个为0的平移参数，以及全局优化计算出来的旋转参数。
+全局优化、局部优化，都是调用的optimize函数。Aligner::optimize()在这个函数设置了NLOPT优化的相关参数，包括：是全局优化还是局部优化、优化问题的上下界、最大迭代次数、求解精度以及目标函数等。
+最重要的是目标函数LidarOdomMinimizer LidarOdomMinimizer()这个函数在优化中会不断调用，迭代计算。
+首先会通过上一时刻的状态，计算新的从Lidar到Odom的变换（这里用到了Transform.h中定义的一些变换），误差是由lidarOdomKNNError函数获得。
 lidarOdomKNNError()
 这个是一个重载函数，具有两种重载类型。首先调用的是lidarOdomKNNError(const Lidar)，处理的是Lidar的数据，首先根据估计的Lidar到Odom的变化，对完整的scans_数据计算出每次scan时每个点在Odom下的坐标（getTimeAlignedPointcloud函数，相当于点云去畸变），得到一个结合的点云(CombinedPointcloud)，之后从这个点云中寻找每个点的最近邻，在利用另一个重载类型的lidarOdomKNNError(const Pointcloud, const Pointcloud)函数进行计算最近邻误差。
 计算最近邻误差时，构建了一个KD-Tree，并行计算kNNError函数，利用pcl库的nearestKSearch函数搜索一定范围（全局优化时是1m，局部优化时是0.1m）的最近邻，计算最近2个点的误差。
@@ -66,6 +69,7 @@ Lidar的数据直接是ros中的sensor_msgs/PointCloud2即可，但位置数据�
 [1]给出了一种IMU计算Odom的实现。
 3.5 数据采集要求
 作者在issue和readme中指出，该方法存在的局限性是，必须要求采集数据时系统进行非平面运动，对平移要求不高但要求旋转必须充分。但对数据量、运动范围没有经过严格的测试。这个局限性也限制了不能用于给无人车这种系统标定。
+
 参考资料
 [0]. 原版代码github：https://github.com/ethz-asl/lidar_align
 [1]. IMU数据计算Odom的实现：https://www.cnblogs.com/gangyin/p/13366683.html
