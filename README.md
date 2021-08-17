@@ -7,9 +7,13 @@
 
 1.1 代码结构
 代码主要包括：头文件、cpp、以及ROS的launch启动文件等。其中头文件包括：
+
 aligner.h：Lidar和Odom对齐（外参计算）时用到的类
+
 loader.h：从ROS的Bag或CSV格式载入数据的相关函数
+
 sensors.h：主要包括：里程计Odom，以及雷达Lidar相关接口
+
 transform.h：一些SO3变化的计算以及转换，在插值、优化时使用
 
 1.2 方法基本思想
